@@ -1,0 +1,193 @@
+/* ── Reset & base ───────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  background: #f0f2f5;
+  color: #1f2328;
+  min-height: 100vh;
+  padding: 2rem 1rem;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+.container {
+  max-width: 580px;
+  margin: 0 auto;
+}
+
+header h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  margin-bottom: 1.5rem;
+  color: #1f2328;
+}
+
+/* ── Error banner ───────────────────────────────────────────────────────── */
+.error-banner {
+  background: #fff0f0;
+  border: 1px solid #f5c6c6;
+  color: #c0392b;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+.hidden { display: none !important; }
+
+/* ── Form ───────────────────────────────────────────────────────────────── */
+.form-section {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.form-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.form-row:last-child { margin-bottom: 0; }
+
+input[type="text"] {
+  flex: 1;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.15s;
+  background: #fafafa;
+}
+input[type="text"]:focus {
+  border-color: #3b82d4;
+  background: #fff;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+.btn {
+  padding: 0.6rem 1.1rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary  { background: #3b82d4; color: #fff; }
+.btn-primary:hover:not(:disabled)  { background: #2563c0; }
+
+.btn-success  { background: #e8f5e9; color: #2e7d32; }
+.btn-success:hover:not(:disabled)  { background: #c8e6c9; }
+.btn-success.active { background: #2e7d32; color: #fff; }
+
+.btn-danger   { background: #fdecea; color: #c0392b; }
+.btn-danger:hover:not(:disabled)   { background: #f5c6c6; }
+
+.btn-sm { padding: 0.35rem 0.7rem; font-size: 0.82rem; }
+
+/* ── Filter tabs ────────────────────────────────────────────────────────── */
+.filters {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+.filter-btn {
+  padding: 0.35rem 0.9rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  background: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: #57606a;
+  transition: all 0.15s;
+}
+.filter-btn.active,
+.filter-btn:hover {
+  background: #3b82d4;
+  border-color: #3b82d4;
+  color: #fff;
+}
+
+/* ── Todo list ──────────────────────────────────────────────────────────── */
+#todo-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.todo-item {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  transition: border-color 0.15s;
+}
+.todo-item:hover { border-color: #c8d6e8; }
+.todo-item.completed { opacity: 0.6; }
+
+.todo-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 3px;
+  cursor: pointer;
+  accent-color: #3b82d4;
+}
+
+.todo-body { flex: 1; min-width: 0; }
+
+.todo-title {
+  font-weight: 500;
+  word-break: break-word;
+}
+.todo-item.completed .todo-title {
+  text-decoration: line-through;
+  color: #57606a;
+}
+
+.todo-description {
+  font-size: 0.85rem;
+  color: #57606a;
+  margin-top: 0.1rem;
+  word-break: break-word;
+}
+
+.todo-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* ── Empty state & footer ───────────────────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  color: #57606a;
+  padding: 2rem 0;
+  font-size: 0.95rem;
+}
+
+.app-footer {
+  margin-top: 1rem;
+  text-align: right;
+  font-size: 0.82rem;
+  color: #57606a;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .form-row { flex-direction: column; }
+  .btn-primary { width: 100%; }
+  .todo-actions { flex-direction: column; }
+}

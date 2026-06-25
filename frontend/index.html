@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Todo App</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>My Todos</h1>
+    </header>
+
+    <!-- Error banner (hidden by default) -->
+    <div id="error-banner" class="error-banner hidden" role="alert"></div>
+
+    <!-- Add todo form -->
+    <section class="form-section">
+      <form id="todo-form" novalidate>
+        <div class="form-row">
+          <input
+            id="todo-title"
+            type="text"
+            placeholder="What needs to be done?"
+            autocomplete="off"
+            required
+          />
+          <button type="submit" class="btn btn-primary">Add</button>
+        </div>
+        <div class="form-row">
+          <input
+            id="todo-description"
+            type="text"
+            placeholder="Description (optional)"
+            autocomplete="off"
+          />
+        </div>
+      </form>
+    </section>
+
+    <!-- Filter tabs -->
+    <nav class="filters" aria-label="Filter todos">
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn" data-filter="active">Active</button>
+      <button class="filter-btn" data-filter="completed">Completed</button>
+    </nav>
+
+    <!-- Todo list -->
+    <main>
+      <ul id="todo-list" aria-label="Todo items"></ul>
+      <p id="empty-state" class="empty-state hidden">No todos yet — add one above!</p>
+    </main>
+
+    <footer class="app-footer">
+      <span id="remaining-count"></span>
+    </footer>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
