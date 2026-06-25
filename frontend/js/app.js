@@ -1,84 +1,120 @@
 /**
- * app.js — UI logic for the Todo application.
+ * app.js — UI logic + spectacle for the Todo application.
  *
  * Responsibilities:
- *  - Render the todo list from API data
- *  - Handle form submission (create)
- *  - Handle per-item actions (toggle complete, delete)
- *  - Client-side filter tabs (All / Active / Completed)
- *  - Show/hide error banner
- *
- * Architecture note:
- *  All network calls go through api.js. This file only touches the DOM
- *  and calls the api.js functions — it never uses fetch() directly.
- *  This separation makes both files easier to test and reason about.
+ *  - Render the todo list from API data with staggered animations
+ *  - Handle form submission, toggle, delete with fluid transitions
+ *  - Particle canvas background (mouse-reactive dot grid)
+ *  - Cursor glow follower
+ *  - Button ripple on submit
+ *  - Particle burst on task complete
+ *  - Animated counter on remaining count
+ *  - Live progress bar
+ *  - Confetti + celebration overlay when all tasks are done
  */
 
 // ── State ────────────────────────────────────────────────────────────────────
 
-/**
- * In-memory cache of todos fetched from the server.
- * The UI always renders from this array, never re-fetching on every render.
- * @type {object[]}
- */
+/** @type {object[]} */
 let todos = [];
 
-/**
- * Active filter: "all" | "active" | "completed"
- * @type {string}
- */
+/** @type {string} "all" | "active" | "completed" */
 let currentFilter = "all";
 
 // ── DOM references ────────────────────────────────────────────────────────────
 
-const form          = document.getElementById("todo-form");
-const titleInput    = document.getElementById("todo-title");
-const descInput     = document.getElementById("todo-description");
-const todoList      = document.getElementById("todo-list");
-const emptyState    = document.getElementById("empty-state");
-const errorBanner   = document.getElementById("error-banner");
-const remainingCount = document.getElementById("remaining-count");
+const form            = document.getElementById("todo-form");
+const titleInput      = document.getElementById("todo-title");
+const descInput       = document.getElementById("todo-description");
+const todoList        = document.getElementById("todo-list");
+const emptyState      = document.getElementById("empty-state");
+const errorBanner     = document.getElementById("error-banner");
+const errorText       = errorBanner.querySelector(".error-text");
+const remainingCount  = document.getElementById("remaining-count");
+const progressFill    = document.getElementById("progress-fill");
+const progressLabel   = document.getElementById("progress-label");
+const progressShell   = document.getElementById("progress-shell");
+const celebrationEl   = document.getElementById("celebration");
+const confettiCanvas  = document.getElementById("confetti-canvas");
+const cursorGlow      = document.getElementById("cursor-glow");
+const btnAdd          = document.querySelector(".btn-add");
+const btnRipple       = document.querySelector(".btn-ripple");
 
 // ── Error handling ────────────────────────────────────────────────────────────
 
-/**
- * Display an error message at the top of the page.
- *
- * Why we show errors here instead of alert():
- *  - alert() blocks the main thread and is jarring for users.
- *  - An inline banner is dismissible and doesn't interrupt flow.
- *
- * @param {string} message
- */
 function showError(message) {
-  errorBanner.textContent = message;
+  errorText.textContent = message;
   errorBanner.classList.remove("hidden");
-  // Auto-hide after 5 seconds so the banner doesn't clutter the UI
   setTimeout(() => errorBanner.classList.add("hidden"), 5000);
 }
+function hideError() { errorBanner.classList.add("hidden"); }
 
-function hideError() {
-  errorBanner.classList.add("hidden");
+// ── Progress bar ──────────────────────────────────────────────────────────────
+
+let prevPercent = 0;
+
+function updateProgress() {
+  const total     = todos.length;
+  const completed = todos.filter(t => t.completed).length;
+  const pct       = total === 0 ? 0 : Math.round((completed / total) * 100);
+
+  progressFill.style.width = pct + "%";
+  animateCounter(progressLabel, prevPercent, pct, 500, v => v + "%");
+  prevPercent = pct;
+
+  if (pct === 100 && total > 0) {
+    progressShell.classList.add("is-complete");
+  } else {
+    progressShell.classList.remove("is-complete");
+  }
+}
+
+// ── Animated counter ──────────────────────────────────────────────────────────
+
+/**
+ * Smoothly tween a displayed number from `from` to `to`.
+ * @param {HTMLElement} el
+ * @param {number} from
+ * @param {number} to
+ * @param {number} duration ms
+ * @param {function} format  maps number → string
+ */
+function animateCounter(el, from, to, duration, format = v => String(v)) {
+  if (from === to) { el.textContent = format(to); return; }
+  const start = performance.now();
+  function tick(now) {
+    const t = Math.min(1, (now - start) / duration);
+    // ease-out quad
+    const eased = 1 - (1 - t) * (1 - t);
+    const value = Math.round(from + (to - from) * eased);
+    el.textContent = format(value);
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+let prevActive = 0;
+
+function updateRemainingCount() {
+  const active = todos.filter(t => !t.completed).length;
+  animateCounter(
+    remainingCount,
+    prevActive,
+    active,
+    400,
+    v => v === 1 ? "1 item left" : `${v} items left`
+  );
+  prevActive = active;
 }
 
 // ── Rendering ─────────────────────────────────────────────────────────────────
 
-/**
- * Return the subset of todos that match the current filter.
- * @returns {object[]}
- */
 function filteredTodos() {
   if (currentFilter === "active")    return todos.filter(t => !t.completed);
   if (currentFilter === "completed") return todos.filter(t => t.completed);
   return todos;
 }
 
-/**
- * Re-render the todo list from the in-memory `todos` array.
- *
- * We rebuild the list on every change rather than doing surgical DOM
- * updates. For a todo list this is fast enough and keeps the code simple.
- */
 function render() {
   const visible = filteredTodos();
   todoList.innerHTML = "";
@@ -87,95 +123,337 @@ function render() {
     emptyState.classList.remove("hidden");
   } else {
     emptyState.classList.add("hidden");
-    visible.forEach(todo => todoList.appendChild(createTodoElement(todo)));
+    visible.forEach((todo, i) => {
+      const el = createTodoElement(todo);
+      todoList.appendChild(el);
+      requestAnimationFrame(() => {
+        setTimeout(() => el.classList.add("is-visible"), i * 45);
+      });
+    });
   }
 
-  // Footer count — only counts truly incomplete todos regardless of filter
-  const activeCount = todos.filter(t => !t.completed).length;
-  remainingCount.textContent =
-    activeCount === 1 ? "1 item left" : `${activeCount} items left`;
+  updateRemainingCount();
+  updateProgress();
+  checkCelebration();
 }
 
-/**
- * Build a <li> element for a single todo.
- *
- * @param {object} todo - Todo data from the API
- * @returns {HTMLLIElement}
- */
+// ── Celebration ───────────────────────────────────────────────────────────────
+
+let celebrationShown = false;
+
+function checkCelebration() {
+  const total     = todos.length;
+  const completed = todos.filter(t => t.completed).length;
+
+  if (total > 0 && completed === total && !celebrationShown) {
+    celebrationShown = true;
+    showCelebration();
+  } else if (completed < total) {
+    celebrationShown = false;
+  }
+}
+
+function showCelebration() {
+  celebrationEl.classList.remove("hidden");
+  launchConfetti();
+  // Auto-hide after 3.5s
+  setTimeout(() => {
+    celebrationEl.style.transition = "opacity 0.6s";
+    celebrationEl.style.opacity = "0";
+    setTimeout(() => {
+      celebrationEl.classList.add("hidden");
+      celebrationEl.style.opacity = "";
+      celebrationEl.style.transition = "";
+    }, 600);
+  }, 3500);
+}
+
+// ── Confetti ──────────────────────────────────────────────────────────────────
+
+function launchConfetti() {
+  const ctx    = confettiCanvas.getContext("2d");
+  confettiCanvas.width  = window.innerWidth;
+  confettiCanvas.height = window.innerHeight;
+
+  const COLORS = ["#7c6cfc", "#3ecfcf", "#f06bff", "#22d67a", "#ffd166", "#ff6b9d"];
+  const pieces = Array.from({ length: 120 }, () => ({
+    x:    Math.random() * confettiCanvas.width,
+    y:    Math.random() * -confettiCanvas.height,
+    w:    6 + Math.random() * 8,
+    h:    10 + Math.random() * 6,
+    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    speed: 2.5 + Math.random() * 4,
+    drift: (Math.random() - 0.5) * 2,
+    spin:  (Math.random() - 0.5) * 0.15,
+    angle: Math.random() * Math.PI * 2,
+  }));
+
+  let frame;
+  const endAt = performance.now() + 3000;
+
+  function draw(now) {
+    ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+    for (const p of pieces) {
+      p.y     += p.speed;
+      p.x     += p.drift;
+      p.angle += p.spin;
+      ctx.save();
+      ctx.translate(p.x + p.w / 2, p.y + p.h / 2);
+      ctx.rotate(p.angle);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = Math.min(1, Math.max(0, (endAt - now) / 800));
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    }
+    if (now < endAt) {
+      frame = requestAnimationFrame(draw);
+    } else {
+      ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+    }
+  }
+  frame = requestAnimationFrame(draw);
+}
+
+// ── Particle burst on checkbox complete ───────────────────────────────────────
+
+function spawnBurst(checkboxEl) {
+  const rect   = checkboxEl.getBoundingClientRect();
+  const cx     = rect.left + rect.width  / 2;
+  const cy     = rect.top  + rect.height / 2;
+  const COLORS = ["#7c6cfc", "#3ecfcf", "#22d67a", "#f06bff", "#ffd166"];
+  const N      = 10;
+
+  for (let i = 0; i < N; i++) {
+    const angle = (i / N) * Math.PI * 2;
+    const dist  = 28 + Math.random() * 24;
+    const dx    = Math.cos(angle) * dist;
+    const dy    = Math.sin(angle) * dist;
+
+    const dot = document.createElement("div");
+    dot.className = "burst-particle";
+    dot.style.left  = cx + "px";
+    dot.style.top   = cy + "px";
+    dot.style.background = COLORS[i % COLORS.length];
+    dot.style.setProperty("--burst-end", `translate(${dx}px, ${dy}px)`);
+    dot.style.width  = (4 + Math.random() * 5) + "px";
+    dot.style.height = dot.style.width;
+    document.body.appendChild(dot);
+
+    dot.addEventListener("animationend", () => dot.remove());
+  }
+}
+
+// ── Button ripple ─────────────────────────────────────────────────────────────
+
+btnAdd.addEventListener("click", (e) => {
+  const rect = btnAdd.getBoundingClientRect();
+  btnRipple.style.left = (e.clientX - rect.left) + "px";
+  btnRipple.style.top  = (e.clientY - rect.top)  + "px";
+  btnRipple.classList.remove("ripple-active");
+  // Force reflow so re-adding the class triggers the animation
+  void btnRipple.offsetWidth;
+  btnRipple.classList.add("ripple-active");
+});
+
+// ── Cursor glow ───────────────────────────────────────────────────────────────
+
+let glowVisible = false;
+document.addEventListener("mousemove", (e) => {
+  cursorGlow.style.left = e.clientX + "px";
+  cursorGlow.style.top  = e.clientY + "px";
+  if (!glowVisible) {
+    cursorGlow.style.opacity = "1";
+    glowVisible = true;
+  }
+});
+document.addEventListener("mouseleave", () => {
+  cursorGlow.style.opacity = "0";
+  glowVisible = false;
+});
+
+// ── Particle canvas ───────────────────────────────────────────────────────────
+
+(function initParticles() {
+  const canvas = document.getElementById("particle-canvas");
+  const ctx    = canvas.getContext("2d");
+  let W, H, particles, mouse = { x: -9999, y: -9999 };
+
+  const PARTICLE_COUNT = 70;
+  const CONNECT_DIST   = 130;
+  const MOUSE_REPEL    = 100;
+  const SPEED          = 0.28;
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+
+  function mkParticle() {
+    return {
+      x:  Math.random() * W,
+      y:  Math.random() * H,
+      vx: (Math.random() - 0.5) * SPEED * 2,
+      vy: (Math.random() - 0.5) * SPEED * 2,
+      r:  1 + Math.random() * 1.2,
+    };
+  }
+
+  function init() {
+    resize();
+    particles = Array.from({ length: PARTICLE_COUNT }, mkParticle);
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Move
+    for (const p of particles) {
+      // Gentle mouse repulsion
+      const dx = p.x - mouse.x;
+      const dy = p.y - mouse.y;
+      const d  = Math.hypot(dx, dy);
+      if (d < MOUSE_REPEL) {
+        const force = (MOUSE_REPEL - d) / MOUSE_REPEL * 0.6;
+        p.vx += (dx / d) * force;
+        p.vy += (dy / d) * force;
+      }
+
+      // Dampen velocity
+      p.vx *= 0.995;
+      p.vy *= 0.995;
+
+      // Clamp speed
+      const spd = Math.hypot(p.vx, p.vy);
+      if (spd > SPEED * 3) {
+        p.vx = (p.vx / spd) * SPEED * 3;
+        p.vy = (p.vy / spd) * SPEED * 3;
+      }
+
+      p.x += p.vx;
+      p.y += p.vy;
+
+      // Wrap
+      if (p.x < -10) p.x = W + 10;
+      if (p.x > W + 10) p.x = -10;
+      if (p.y < -10) p.y = H + 10;
+      if (p.y > H + 10) p.y = -10;
+    }
+
+    // Draw dots
+    ctx.fillStyle = "rgba(124, 108, 252, 0.6)";
+    for (const p of particles) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Draw connections
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const a  = particles[i];
+        const b  = particles[j];
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const d  = Math.hypot(dx, dy);
+        if (d < CONNECT_DIST) {
+          const alpha = (1 - d / CONNECT_DIST) * 0.25;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.strokeStyle = `rgba(124, 108, 252, ${alpha})`;
+          ctx.lineWidth   = 0.8;
+          ctx.stroke();
+        }
+      }
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener("resize", () => {
+    resize();
+    particles = Array.from({ length: PARTICLE_COUNT }, mkParticle);
+  });
+
+  window.addEventListener("mousemove", (e) => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+  });
+
+  init();
+  draw();
+})();
+
+// ── Todo element builder ──────────────────────────────────────────────────────
+
 function createTodoElement(todo) {
   const li = document.createElement("li");
   li.className = `todo-item${todo.completed ? " completed" : ""}`;
   li.dataset.id = todo.id;
 
-  // Checkbox mirrors the completed state and triggers a toggle
-  const checkbox = document.createElement("input");
-  checkbox.type = "checkbox";
-  checkbox.checked = todo.completed;
-  checkbox.setAttribute("aria-label", `Mark "${todo.title}" as ${todo.completed ? "incomplete" : "complete"}`);
-  checkbox.addEventListener("change", () => handleToggle(todo.id));
+  const inner = document.createElement("div");
+  inner.className = "todo-inner";
 
-  // Text content
-  const body = document.createElement("div");
+  const checkWrap = document.createElement("div");
+  checkWrap.className = "todo-checkbox-wrap";
+
+  const checkbox = document.createElement("input");
+  checkbox.type    = "checkbox";
+  checkbox.checked = todo.completed;
+  checkbox.setAttribute(
+    "aria-label",
+    `Mark "${todo.title}" as ${todo.completed ? "incomplete" : "complete"}`
+  );
+  checkbox.addEventListener("change", () => {
+    if (checkbox.checked) spawnBurst(checkbox);
+    handleToggle(todo.id);
+  });
+  checkWrap.appendChild(checkbox);
+
+  const body     = document.createElement("div");
   body.className = "todo-body";
 
-  const titleEl = document.createElement("span");
+  const titleEl     = document.createElement("span");
   titleEl.className = "todo-title";
   titleEl.textContent = todo.title;
   body.appendChild(titleEl);
 
   if (todo.description) {
-    const descEl = document.createElement("p");
+    const descEl     = document.createElement("span");
     descEl.className = "todo-description";
     descEl.textContent = todo.description;
     body.appendChild(descEl);
   }
 
-  // Action buttons
-  const actions = document.createElement("div");
+  const actions     = document.createElement("div");
   actions.className = "todo-actions";
 
-  const deleteBtn = document.createElement("button");
-  deleteBtn.className = "btn btn-danger btn-sm";
-  deleteBtn.textContent = "Delete";
+  const deleteBtn     = document.createElement("button");
+  deleteBtn.className = "btn-delete";
   deleteBtn.setAttribute("aria-label", `Delete "${todo.title}"`);
-  deleteBtn.addEventListener("click", () => handleDelete(todo.id));
-
+  deleteBtn.innerHTML = `
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>`;
+  deleteBtn.addEventListener("click", () => handleDelete(todo.id, li));
   actions.appendChild(deleteBtn);
 
-  li.append(checkbox, body, actions);
+  inner.append(checkWrap, body, actions);
+  li.appendChild(inner);
   return li;
 }
 
 // ── API action handlers ───────────────────────────────────────────────────────
 
-/**
- * Load all todos from the API and re-render.
- *
- * This is called once on page load, and after any mutation (create /
- * toggle / delete) to keep the UI in sync with the server.
- *
- * Why async/await instead of .then()/.catch():
- *  - async/await reads top-to-bottom like synchronous code.
- *  - Error handling with try/catch is cleaner than chained .catch().
- *  - Easier to add sequential await calls later without nesting.
- */
 async function loadTodos() {
   try {
-    todos = await getTodos();  // getTodos() is defined in api.js
+    todos = await getTodos();
     render();
   } catch (err) {
-    showError(`Could not load todos: ${err.message}`);
+    showError(`Could not load tasks: ${err.message}`);
   }
 }
 
-/**
- * Handle the "Add" form submission.
- *
- * We call event.preventDefault() to stop the browser's default form
- * behaviour (page reload), then POST to the API and refresh the list.
- *
- * @param {SubmitEvent} event
- */
 async function handleCreate(event) {
   event.preventDefault();
   hideError();
@@ -183,46 +461,51 @@ async function handleCreate(event) {
   const title = titleInput.value.trim();
   if (!title) {
     titleInput.focus();
+    titleInput.animate(
+      [
+        { transform: "translateX(0)" },
+        { transform: "translateX(-7px)" },
+        { transform: "translateX(7px)" },
+        { transform: "translateX(-4px)" },
+        { transform: "translateX(0)" },
+      ],
+      { duration: 320, easing: "ease-out" }
+    );
     return;
   }
 
   try {
     const newTodo = await createTodo(title, descInput.value.trim());
-    todos.unshift(newTodo);  // Prepend to match backend's DESC ordering
+    todos.unshift(newTodo);
     titleInput.value = "";
     descInput.value  = "";
     render();
   } catch (err) {
-    showError(`Could not create todo: ${err.message}`);
+    showError(`Could not create task: ${err.message}`);
   }
 }
 
-/**
- * Toggle a todo's completed state via the API.
- * @param {number} id
- */
 async function handleToggle(id) {
   try {
-    const updated = await toggleTodo(id);  // toggleTodo() is in api.js
+    const updated = await toggleTodo(id);
     todos = todos.map(t => t.id === id ? updated : t);
     render();
   } catch (err) {
-    showError(`Could not update todo: ${err.message}`);
-    render(); // Re-render to restore checkbox to actual state
+    showError(`Could not update task: ${err.message}`);
+    render();
   }
 }
 
-/**
- * Delete a todo via the API.
- * @param {number} id
- */
-async function handleDelete(id) {
+async function handleDelete(id, el) {
+  el.classList.add("is-removing");
+  await new Promise(r => setTimeout(r, 320));
   try {
-    await deleteTodo(id);  // deleteTodo() is in api.js
+    await deleteTodo(id);
     todos = todos.filter(t => t.id !== id);
     render();
   } catch (err) {
-    showError(`Could not delete todo: ${err.message}`);
+    el.classList.remove("is-removing");
+    showError(`Could not delete task: ${err.message}`);
   }
 }
 
@@ -240,6 +523,4 @@ document.querySelectorAll(".filter-btn").forEach(btn => {
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
 
 form.addEventListener("submit", handleCreate);
-
-// Load todos as soon as the page is ready
 loadTodos();
